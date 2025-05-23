@@ -2,7 +2,7 @@ import pyxel
 
 screen_width = 160
 screen_height = 120
-STONE_iNTERVAL = 30
+STONE_iNTERVAL = 5
 GAME_OVER_DISPLAY_TIME = 60
 START_SCENE = "start"
 PLAY_SCENE = "play"
@@ -14,7 +14,7 @@ class Stone:
 
     def update(self):
         if self.y < screen_height:
-            self.y += 1
+            self.y += 2
 
     def draw(self):
         pyxel.blt(self.x, self.y, 0, 8, 0, 8, 8, pyxel.COLOR_BLACK)
@@ -24,16 +24,21 @@ class App:
     def __init__(self):
         pyxel.init(160,120,title="ミニゲーム")
         pyxel.mouse(True)
-        pyxel.load("my_resource.pyxres")
+        pyxel.load("../my_resource.pyxres")
         self.current_scene = START_SCENE
         self.player_x = screen_width // 2
         self.player_y = screen_height * 4 // 5
         self.stones = []
         self.is_collision = False
+        self.game_over_display_timer = GAME_OVER_DISPLAY_TIME
         pyxel.run(self.update,self.draw)
 
     def reset_play_sene(self):
-        pyxel.game_over_display_timer = GAME_OVER_DISPLAY_TIME
+        self.player_x = screen_width // 2
+        self.player_y = screen_height * 4 // 5
+        self.stones = []
+        self.is_collision = False
+        self.game_over_display_timer = GAME_OVER_DISPLAY_TIME
     
     def update_start_scene(self):
         if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
@@ -62,6 +67,7 @@ class App:
         #石の落下
         for stone in self.stones.copy():
             stone.update()
+            
             #衝突
             if (self.player_x <= stone.x <= self.player_x+8 and self.player_y <= stone.y <= self.player_y+8):
                 self.is_collision = True
@@ -81,10 +87,10 @@ class App:
             self.update_play_scene()
 
     def draw_start_scene(self):
-        pyxel.blt(0,0,0,32,0,160,120)
-        pyxel.text(screen_width//10, screen_height//10, "Click to start", pyxel.COLOR_WHITE)
+        pyxel.cls(pyxel.COLOR_DARK_BLUE)
+        pyxel.text(screen_width//2-30, screen_height//2-10, "CLICK TO START!!", pyxel.COLOR_YELLOW)
 
-    def update_start_scene(self):
+    def draw_play_scene(self):
         pyxel.cls(pyxel.COLOR_DARK_BLUE)
         
         #石
