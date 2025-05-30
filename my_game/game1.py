@@ -11,6 +11,7 @@ START_SCENE = "start"
 PLAY_SCENE = "play"
 RANKING_SCENE = "ranking"
 RANKING_FILE = "ranking.pkl"
+MANUAL_SCENE = "manual"  # 説明書シーンを追加
 
 class Stone:
     def __init__(self,x,y):
@@ -40,6 +41,11 @@ class Item:
         # ここでアイテム画像の座標・サイズを指定
         pyxel.blt(self.x, self.y, 0, 32, 0, 8, 8, pyxel.COLOR_BLACK)
 
+class HeartItem(Item):
+    def draw(self):
+        # ハート画像の座標・サイズを指定（例: 40,0,8,8）
+        pyxel.blt(self.x, self.y, 0, 40, 0, 8, 8, pyxel.COLOR_BLACK)
+
 class App:
     def __init__(self):
         pyxel.init(160,120,title="ミニゲーム")
@@ -52,13 +58,17 @@ class App:
         self.player_y = screen_height * 4 // 5
         self.stones = []
         self.item = None
-        self.next_item_timer = random.randint(180, 600)  # 3秒～10秒
+        self.heart_item = None
+        self.next_item_timer = random.randint(60, 120)      # 通常アイテム用（例: 1～2秒）
+        self.next_heart_timer = random.randint(20, 40)    # ハート用（例: 3～6秒）
         self.is_collision = False
         self.game_over_display_timer = GAME_OVER_DISPLAY_TIME
         self.score = 0
         self.stone_speed = 2
         self.stone_interval = STONE_iNTERVAL
         self.ranking = self.load_ranking()
+        self.item_get_timer = 0  # ←追加
+        self.life = 1  # 残基
         pyxel.run(self.update,self.draw)
 
     def load_ranking(self):
@@ -76,32 +86,48 @@ class App:
         self.player_y = screen_height * 4 // 5
         self.stones = []
         self.item = None
-        self.next_item_timer = random.randint(180, 600)
+        self.heart_item = None
+        self.next_item_timer = random.randint(60, 120)
+        self.next_heart_timer = random.randint(20, 40)
         self.is_collision = False
         self.game_over_display_timer = GAME_OVER_DISPLAY_TIME
         self.score = 0
         self.stone_speed = 2
         self.stone_interval = STONE_iNTERVAL
+        self.item_get_timer = 0  # ←追加
+        self.life = 1
 
     def update_start_scene(self):
         if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
             mx = pyxel.mouse_x
             my = pyxel.mouse_y
             # STARTボタンの範囲
-            start_btn_x = screen_width//2-20
-            start_btn_y = screen_height//2-30
-            start_btn_w = 40
-            start_btn_h = 16
+            start_btn_x = screen_width//2-15
+            start_btn_y = screen_height//2-25
+            start_btn_w = 30
+            start_btn_h = 10
             # ENDボタンの範囲
-            end_btn_x = screen_width//2-20
-            end_btn_y = screen_height//2
-            end_btn_w = 40
-            end_btn_h = 16
+            end_btn_x = screen_width//2-15
+            end_btn_y = screen_height//2-5
+            end_btn_w = 30
+            end_btn_h = 10
+            # 説明書ボタンの範囲
+            manual_btn_x = screen_width//2-15
+            manual_btn_y = screen_height//2+15
+            manual_btn_w = 30
+            manual_btn_h = 10
+
             if start_btn_x <= mx <= start_btn_x+start_btn_w and start_btn_y <= my <= start_btn_y+start_btn_h:
                 self.reset_play_sene()
                 self.current_scene = PLAY_SCENE
             elif end_btn_x <= mx <= end_btn_x+end_btn_w and end_btn_y <= my <= end_btn_y+end_btn_h:
                 pyxel.quit()
+            elif manual_btn_x <= mx <= manual_btn_x+manual_btn_w and manual_btn_y <= my <= manual_btn_y+manual_btn_h:
+                self.current_scene = MANUAL_SCENE
+
+    def update_manual_scene(self):
+        if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
+            self.current_scene = START_SCENE
 
     def update_ranking_scene(self):
         if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
@@ -112,7 +138,6 @@ class App:
             if self.game_over_display_timer > 0:
                 self.game_over_display_timer -= 1
             else:
-                # スコアをランキングに追加
                 self.ranking.append(self.score)
                 self.ranking = sorted(self.ranking, reverse=True)[:3]
                 self.save_ranking()
@@ -123,8 +148,8 @@ class App:
         self.score += 1
 
         # 難易度調整：スコアが上がるごとに石のスピードと出現頻度を上げる
-        self.stone_speed = 2 + self.score // 300  # 300フレームごとに+1
-        self.stone_interval = max(1, STONE_iNTERVAL - self.score // 300)  # 最小1まで減少
+        self.stone_speed = min(5, 2 + self.score // 500)  # 最大5まで、緩やかに上昇
+        self.stone_interval = max(1, STONE_iNTERVAL - self.score // 500)  # 最小1まで減少
 
         # プレイヤーの移動
         if pyxel.btn(pyxel.KEY_RIGHT) and self.player_x < screen_width - 20:
@@ -136,70 +161,105 @@ class App:
         if pyxel.frame_count % self.stone_interval == 0:
             self.stones.append(Stone(pyxel.rndi(0,screen_width-8),0))
 
-        # 石の落下
+        # 石の落下と当たり判定
         for stone in self.stones.copy():
-            stone.y += self.stone_speed  # スピードを反映
-            # 衝突
+            stone.y += self.stone_speed
             if (self.player_x <= stone.x <= self.player_x+10 and self.player_y <= stone.y <= self.player_y+7):
-                self.is_collision = True
-            # 画面外に出た石の削除
-            if stone.y >= screen_height:
+                self.life -= 1
+                self.stones.remove(stone)
+                if self.life <= 0:
+                    self.is_collision = True
+            elif stone.y >= screen_height:
                 self.stones.remove(stone)
 
-        # アイテム出現タイマー
+        # 通常アイテム出現タイマー
         if self.item is None:
             self.next_item_timer -= 1
             if self.next_item_timer <= 0:
                 self.item = Item(pyxel.rndi(0, screen_width-8), 0)
+                self.next_item_timer = random.randint(60, 120)
         else:
             self.item.update()
-            # プレイヤーとアイテムの当たり判定
-            if (self.player_x <= self.item.x <= self.player_x+10 and
-                self.player_y <= self.item.y <= self.player_y+7):
+            if (self.player_x < self.item.x + 8 and self.player_x + 16 > self.item.x and
+                self.player_y < self.item.y + 8 and self.player_y + 16 > self.item.y):
                 self.score += 100
                 self.item = None
-                self.next_item_timer = random.randint(180, 600)
+                self.next_item_timer = random.randint(60, 120)
+                self.item_get_timer = 60
             elif not self.item.active:
                 self.item = None
-                self.next_item_timer = random.randint(180, 600)
+                self.next_item_timer = random.randint(60, 120)
+
+        # ハートアイテム出現タイマー
+        if self.heart_item is None:
+            self.next_heart_timer -= 1
+            if self.next_heart_timer <= 0:
+                self.heart_item = HeartItem(pyxel.rndi(0, screen_width-8), 0)
+                self.next_heart_timer = random.randint(20, 40)
+        else:
+            self.heart_item.update()
+            if (self.player_x < self.heart_item.x + 8 and self.player_x + 16 > self.heart_item.x and
+                self.player_y < self.heart_item.y + 8 and self.player_y + 16 > self.heart_item.y):
+                self.life += 1
+                self.heart_item = None
+            elif not self.heart_item.active:
+                self.heart_item = None
+
+        # +100表示タイマー減少
+        if self.item_get_timer > 0:
+            self.item_get_timer -= 1
 
     def update(self):
         if pyxel.btnp(pyxel.KEY_ESCAPE):
             pyxel.quit()
-
         if self.current_scene == START_SCENE:
             self.update_start_scene()
         elif self.current_scene == PLAY_SCENE:
             self.update_play_scene()
         elif self.current_scene == RANKING_SCENE:
             self.update_ranking_scene()
+        elif self.current_scene == MANUAL_SCENE:
+            self.update_manual_scene()
 
     def draw_start_scene(self):
         pyxel.cls(pyxel.COLOR_DARK_BLUE)
-        pyxel.text(25, 15, "がんばれ!! スライムくん", pyxel.COLOR_YELLOW,self.jp_font)
-        
-        pyxel.blt(100 , 100, 0, 16, 0, 16, 16, pyxel.COLOR_BLACK)
+        pyxel.text(25, 30, "がんばれ!! スライムくん", pyxel.COLOR_YELLOW, self.jp_font)
+        pyxel.text(25, 110, "MOMIZIzm MUSIC(momijiba)FreeBGM", pyxel.COLOR_WHITE)
+        pyxel.blt(100 , 90, 0, 16, 0, 16, 16, pyxel.COLOR_BLACK)
         # STARTボタン描画
         start_btn_x = screen_width//2-15
         start_btn_y = screen_height//2-25
-        start_btn_w = 30
-        start_btn_h = 10
-        pyxel.rect(start_btn_x, start_btn_y, start_btn_w, start_btn_h, pyxel.COLOR_GREEN)
-        pyxel.text(start_btn_x+6, start_btn_y+3, "START", pyxel.COLOR_WHITE)
+        pyxel.text(start_btn_x+5, start_btn_y+15, "START", pyxel.COLOR_WHITE)
         # ENDボタン描画
         end_btn_x = screen_width//2-15
         end_btn_y = screen_height//2-5
-        end_btn_w = 30
-        end_btn_h = 10
-        pyxel.rect(end_btn_x, end_btn_y, end_btn_w, end_btn_h, pyxel.COLOR_RED)
-        pyxel.text(end_btn_x+9, end_btn_y+3, "END", pyxel.COLOR_WHITE)
+        pyxel.text(end_btn_x+9, end_btn_y+8, "END", pyxel.COLOR_WHITE)
+        # 説明書ボタン描画
+        manual_btn_x = screen_width//2-15
+        manual_btn_y = screen_height//2+15
+        pyxel.text(manual_btn_x+7, manual_btn_y+1, "RULE", pyxel.COLOR_WHITE)
+
+    def draw_manual_scene(self):
+        # 画面全体を使って説明書を表示
+        pyxel.cls(pyxel.COLOR_DARK_BLUE)
+        pyxel.rectb(0, 0, screen_width, screen_height, pyxel.COLOR_WHITE)
+        pyxel.text(30, 10, "■ゲームの説明", pyxel.COLOR_YELLOW, self.jp_font)
+        pyxel.text(30, 30, "←石をよけてスコアを稼ごう", pyxel.COLOR_WHITE, self.jp_font)
+        pyxel.text(30, 45, "←アイテムで+100点", pyxel.COLOR_WHITE, self.jp_font)
+        pyxel.text(30, 60, "←ハートで残基UP", pyxel.COLOR_WHITE,  self.jp_font)
+        pyxel.text(25, 80, "残基0でゲームオーバー", pyxel.COLOR_WHITE, self.jp_font)
+        pyxel.text(40, 100, "クリックで戻る", pyxel.COLOR_RED, self.jp_font)
+        
+        pyxel.blt(15 , 31, 0, 8, 0, 8, 8, pyxel.COLOR_BLACK)
+        pyxel.blt(15 , 46, 0, 32, 0, 8, 8, pyxel.COLOR_BLACK)
+        pyxel.blt(15 , 61, 0, 40, 0, 8, 8, pyxel.COLOR_BLACK)
 
     def draw_ranking_scene(self):
         pyxel.cls(pyxel.COLOR_NAVY)
         pyxel.text(screen_width//2-25, 20, "SCORE RANKING", pyxel.COLOR_YELLOW)
         for i, score in enumerate(self.ranking[:3]):
             pyxel.text(screen_width//2-20, 40+20*i, f"{i+1} : {score}点", pyxel.COLOR_WHITE)
-        pyxel.text(screen_width//2-40, 100, "クリックでスタート画面へ", pyxel.COLOR_CYAN)
+        pyxel.text(25, 100, "クリックでスタート画面へ", pyxel.COLOR_CYAN, self.jp_font)
 
     def draw_play_scene(self):
         pyxel.cls(pyxel.COLOR_DARK_BLUE)
@@ -208,10 +268,18 @@ class App:
         # アイテムの描画
         if self.item is not None:
             self.item.draw()
+        if self.heart_item is not None:
+            self.heart_item.draw()
         # プレイヤーの描画
         pyxel.blt(self.player_x, self.player_y, 0, 16, 0, 16, 16, pyxel.COLOR_BLACK)
         # スコアを表示
         pyxel.text(5, 5, f"Score: {self.score}", pyxel.COLOR_WHITE)
+        # +100表示
+        if self.item_get_timer > 0:
+            pyxel.text(50, 5, "+100", pyxel.COLOR_YELLOW)
+        # 残基（右上にハートで表示）
+        for i in range(self.life):
+            pyxel.blt(screen_width-12-10*i, 5, 0, 40, 0, 8, 8, pyxel.COLOR_BLACK)  # ハート画像
         if self.is_collision:
             pyxel.text(screen_width//2-20, screen_height//2, "GAME OVER", pyxel.COLOR_RED)
 
@@ -224,5 +292,7 @@ class App:
             self.draw_play_scene()
         elif self.current_scene == RANKING_SCENE:
             self.draw_ranking_scene()
+        elif self.current_scene == MANUAL_SCENE:
+            self.draw_manual_scene()
 
 App()
