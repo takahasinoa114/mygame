@@ -1,6 +1,7 @@
 import pyxel
 import pickle #ランキングを保存
 import os #ファイルの存在確認
+import random
 
 screen_width = 160
 screen_height = 120
@@ -23,6 +24,22 @@ class Stone:
     def draw(self):
         pyxel.blt(self.x, self.y, 0, 8, 0, 8, 8, pyxel.COLOR_BLACK)
 
+class Item:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.active = True
+
+    def update(self):
+        if self.y < screen_height:
+            self.y += 2
+        else:
+            self.active = False
+
+    def draw(self):
+        # ここでアイテム画像の座標・サイズを指定
+        pyxel.blt(self.x, self.y, 0, 32, 0, 8, 8, pyxel.COLOR_BLACK)
+
 class App:
     def __init__(self):
         pyxel.init(160,120,title="ミニゲーム")
@@ -34,6 +51,8 @@ class App:
         self.player_x = screen_width // 2
         self.player_y = screen_height * 4 // 5
         self.stones = []
+        self.item = None
+        self.next_item_timer = random.randint(180, 600)  # 3秒～10秒
         self.is_collision = False
         self.game_over_display_timer = GAME_OVER_DISPLAY_TIME
         self.score = 0
@@ -56,6 +75,8 @@ class App:
         self.player_x = screen_width // 2
         self.player_y = screen_height * 4 // 5
         self.stones = []
+        self.item = None
+        self.next_item_timer = random.randint(180, 600)
         self.is_collision = False
         self.game_over_display_timer = GAME_OVER_DISPLAY_TIME
         self.score = 0
@@ -125,6 +146,23 @@ class App:
             if stone.y >= screen_height:
                 self.stones.remove(stone)
 
+        # アイテム出現タイマー
+        if self.item is None:
+            self.next_item_timer -= 1
+            if self.next_item_timer <= 0:
+                self.item = Item(pyxel.rndi(0, screen_width-8), 0)
+        else:
+            self.item.update()
+            # プレイヤーとアイテムの当たり判定
+            if (self.player_x <= self.item.x <= self.player_x+10 and
+                self.player_y <= self.item.y <= self.player_y+7):
+                self.score += 100
+                self.item = None
+                self.next_item_timer = random.randint(180, 600)
+            elif not self.item.active:
+                self.item = None
+                self.next_item_timer = random.randint(180, 600)
+
     def update(self):
         if pyxel.btnp(pyxel.KEY_ESCAPE):
             pyxel.quit()
@@ -167,6 +205,9 @@ class App:
         pyxel.cls(pyxel.COLOR_DARK_BLUE)
         for stone in self.stones:
             stone.draw()
+        # アイテムの描画
+        if self.item is not None:
+            self.item.draw()
         # プレイヤーの描画
         pyxel.blt(self.player_x, self.player_y, 0, 16, 0, 16, 16, pyxel.COLOR_BLACK)
         # スコアを表示
