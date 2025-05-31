@@ -11,7 +11,7 @@ START_SCENE = "start"
 PLAY_SCENE = "play"
 RANKING_SCENE = "ranking"
 RANKING_FILE = "ranking.pkl"
-MANUAL_SCENE = "manual"  # 説明書シーンを追加
+MANUAL_SCENE = "manual"  
 
 class Stone:
     def __init__(self,x,y):
@@ -33,7 +33,7 @@ class Item:
 
     def update(self):
         if self.y < screen_height:
-            self.y += 2
+            self.y +=  1
         else:
             self.active = False
 
@@ -71,7 +71,7 @@ class App:
         self.life = 1  # 残基
         self.new_rank_index = None  # 追加: 新記録のインデックス
         self.reset_message_timer = 0  # ←追加
-        pyxel.run(self.update,self.draw)
+        pyxel.run(self.update, self.draw)
 
     def load_ranking(self):
         if os.path.exists(RANKING_FILE):
@@ -186,8 +186,8 @@ class App:
         self.score += 1
 
         # 難易度調整：スコアが上がるごとに石のスピードと出現頻度を上げる
-        self.stone_speed = min(5, 2 + self.score // 500)  # 最大5まで、緩やかに上昇
-        self.stone_interval = max(1, STONE_iNTERVAL - self.score // 500)  # 最小1まで減少
+        self.stone_speed = min(5, 2 + self.score // 400)  # 最大5まで、緩やかに上昇
+        self.stone_interval = max(1, STONE_iNTERVAL - self.score // 400)  # 最小1まで減少
 
         # プレイヤーの移動
         if pyxel.btn(pyxel.KEY_RIGHT) and self.player_x < screen_width - 20:
@@ -270,6 +270,7 @@ class App:
         reset_btn_y = screen_height//2+50
         pyxel.rect(reset_btn_x, reset_btn_y, 10, 10, pyxel.COLOR_RED)
         pyxel.text(reset_btn_x+2, reset_btn_y+2, "RE", pyxel.COLOR_WHITE)
+
         # リセット完了メッセージ
         if self.reset_message_timer > 0:
             pyxel.text(screen_width//2+20, screen_height//2-60, "reset completed", pyxel.COLOR_CYAN)
