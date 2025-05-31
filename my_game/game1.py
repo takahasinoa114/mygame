@@ -282,7 +282,7 @@ class App:
         pyxel.text(30, 30, "←石をよけてスコアを稼ごう", pyxel.COLOR_WHITE, self.jp_font)
         pyxel.text(30, 45, "←アイテムで+100点", pyxel.COLOR_WHITE, self.jp_font)
         pyxel.text(30, 60, "←ハートで残基UP", pyxel.COLOR_WHITE,  self.jp_font)
-        pyxel.text(25, 80, "残基0でゲームオーバー", pyxel.COLOR_WHITE, self.jp_font)
+        pyxel.text(8, 80, "矢印キー[←][→]で操作してね", pyxel.COLOR_WHITE, self.jp_font)
         pyxel.text(40, 100, "クリックで戻る", pyxel.COLOR_RED, self.jp_font)
         
         pyxel.blt(15 , 31, 0, 8, 0, 8, 8, pyxel.COLOR_BLACK)
