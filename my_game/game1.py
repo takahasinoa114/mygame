@@ -69,6 +69,8 @@ class App:
         self.ranking = self.load_ranking()
         self.item_get_timer = 0  # ←追加
         self.life = 1  # 残基
+        self.new_rank_index = None  # 追加: 新記録のインデックス
+        self.reset_message_timer = 0  # ←追加
         pyxel.run(self.update,self.draw)
 
     def load_ranking(self):
@@ -97,25 +99,50 @@ class App:
         self.item_get_timer = 0  # ←追加
         self.life = 1
 
+    def reset_ranking(self):
+        self.ranking = []
+        if os.path.exists(RANKING_FILE):
+            os.remove(RANKING_FILE)
+        self.reset_message_timer = 30  # ←追加（2秒間表示）
+
+    def update(self):
+        if self.reset_message_timer > 0:
+            self.reset_message_timer -= 1
+        if pyxel.btnp(pyxel.KEY_ESCAPE):
+            pyxel.quit()
+        if self.current_scene == START_SCENE:
+            self.update_start_scene()
+        elif self.current_scene == PLAY_SCENE:
+            self.update_play_scene()
+        elif self.current_scene == RANKING_SCENE:
+            self.update_ranking_scene()
+        elif self.current_scene == MANUAL_SCENE:
+            self.update_manual_scene()
+
     def update_start_scene(self):
         if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
             mx = pyxel.mouse_x
             my = pyxel.mouse_y
             # STARTボタンの範囲
-            start_btn_x = screen_width//2-15
-            start_btn_y = screen_height//2-25
+            start_btn_x = screen_width//2-10
+            start_btn_y = screen_height//2-10
             start_btn_w = 30
             start_btn_h = 10
             # ENDボタンの範囲
-            end_btn_x = screen_width//2-15
-            end_btn_y = screen_height//2-5
+            end_btn_x = screen_width//2-6
+            end_btn_y = screen_height//2+3
             end_btn_w = 30
             end_btn_h = 10
             # 説明書ボタンの範囲
-            manual_btn_x = screen_width//2-15
-            manual_btn_y = screen_height//2+15
+            manual_btn_x = screen_width//2-8
+            manual_btn_y = screen_height//2+16
             manual_btn_w = 30
             manual_btn_h = 10
+            # リセットボタンの範囲
+            reset_btn_x = screen_width//2-80
+            reset_btn_y = screen_height//2+50
+            reset_btn_w = 10
+            reset_btn_h = 10
 
             if start_btn_x <= mx <= start_btn_x+start_btn_w and start_btn_y <= my <= start_btn_y+start_btn_h:
                 self.reset_play_sene()
@@ -124,6 +151,8 @@ class App:
                 pyxel.quit()
             elif manual_btn_x <= mx <= manual_btn_x+manual_btn_w and manual_btn_y <= my <= manual_btn_y+manual_btn_h:
                 self.current_scene = MANUAL_SCENE
+            elif reset_btn_x <= mx <= reset_btn_x+reset_btn_w and reset_btn_y <= my <= reset_btn_y+reset_btn_h:
+                self.reset_ranking()
 
     def update_manual_scene(self):
         if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
@@ -132,15 +161,24 @@ class App:
     def update_ranking_scene(self):
         if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
             self.current_scene = START_SCENE
+            self.new_rank_index = None  # 戻るときにリセット
 
     def update_play_scene(self):
         if self.is_collision:
             if self.game_over_display_timer > 0:
                 self.game_over_display_timer -= 1
             else:
+                # --- ランキング更新処理 ---
+                old_ranking = self.ranking.copy()
                 self.ranking.append(self.score)
                 self.ranking = sorted(self.ranking, reverse=True)[:3]
                 self.save_ranking()
+                # どの順位に入ったかを記録
+                self.new_rank_index = None
+                for i, score in enumerate(self.ranking):
+                    if score == self.score and (len(old_ranking) <= i or old_ranking[i] != self.score):
+                        self.new_rank_index = i
+                        break
                 self.current_scene = RANKING_SCENE
             return
 
@@ -153,9 +191,9 @@ class App:
 
         # プレイヤーの移動
         if pyxel.btn(pyxel.KEY_RIGHT) and self.player_x < screen_width - 20:
-            self.player_x += 1
+            self.player_x += 2  # ←ここを2に
         elif pyxel.btn(pyxel.KEY_LEFT) and self.player_x > 5:
-            self.player_x -= 1
+            self.player_x -= 2  # ←ここを2に
 
         # 石の追加
         if pyxel.frame_count % self.stone_interval == 0:
@@ -209,35 +247,32 @@ class App:
         if self.item_get_timer > 0:
             self.item_get_timer -= 1
 
-    def update(self):
-        if pyxel.btnp(pyxel.KEY_ESCAPE):
-            pyxel.quit()
-        if self.current_scene == START_SCENE:
-            self.update_start_scene()
-        elif self.current_scene == PLAY_SCENE:
-            self.update_play_scene()
-        elif self.current_scene == RANKING_SCENE:
-            self.update_ranking_scene()
-        elif self.current_scene == MANUAL_SCENE:
-            self.update_manual_scene()
-
     def draw_start_scene(self):
         pyxel.cls(pyxel.COLOR_DARK_BLUE)
         pyxel.text(25, 30, "がんばれ!! スライムくん", pyxel.COLOR_YELLOW, self.jp_font)
-        pyxel.text(25, 110, "MOMIZIzm MUSIC(momijiba)FreeBGM", pyxel.COLOR_WHITE)
-        pyxel.blt(100 , 90, 0, 16, 0, 16, 16, pyxel.COLOR_BLACK)
+        pyxel.text(85, 100, "♪BGM:Mini Dessert", pyxel.COLOR_PEACH)
+        pyxel.text(25, 110, "MOMIZIzm MUSIC(momijiba)Free BGM", pyxel.COLOR_PEACH)
+        pyxel.blt(110 , 70, 0, 16, 0, 16, 16, pyxel.COLOR_BLACK)
         # STARTボタン描画
-        start_btn_x = screen_width//2-15
-        start_btn_y = screen_height//2-25
-        pyxel.text(start_btn_x+5, start_btn_y+15, "START", pyxel.COLOR_WHITE)
+        start_btn_x = screen_width//2-10
+        start_btn_y = screen_height//2-10
+        pyxel.text(start_btn_x, start_btn_y, "START", pyxel.COLOR_WHITE)
         # ENDボタン描画
-        end_btn_x = screen_width//2-15
-        end_btn_y = screen_height//2-5
-        pyxel.text(end_btn_x+9, end_btn_y+8, "END", pyxel.COLOR_WHITE)
+        end_btn_x = screen_width//2-6
+        end_btn_y = screen_height//2+3
+        pyxel.text(end_btn_x, end_btn_y, "END", pyxel.COLOR_WHITE)
         # 説明書ボタン描画
-        manual_btn_x = screen_width//2-15
-        manual_btn_y = screen_height//2+15
-        pyxel.text(manual_btn_x+7, manual_btn_y+1, "RULE", pyxel.COLOR_WHITE)
+        manual_btn_x = screen_width//2-8
+        manual_btn_y = screen_height//2+16
+        pyxel.text(manual_btn_x, manual_btn_y, "RULE", pyxel.COLOR_WHITE)
+        # リセットボタン描画
+        reset_btn_x = screen_width//2-80
+        reset_btn_y = screen_height//2+50
+        pyxel.rect(reset_btn_x, reset_btn_y, 10, 10, pyxel.COLOR_RED)
+        pyxel.text(reset_btn_x+2, reset_btn_y+2, "RE", pyxel.COLOR_WHITE)
+        # リセット完了メッセージ
+        if self.reset_message_timer > 0:
+            pyxel.text(screen_width//2+20, screen_height//2-60, "reset completed", pyxel.COLOR_CYAN)
 
     def draw_manual_scene(self):
         # 画面全体を使って説明書を表示
@@ -259,6 +294,9 @@ class App:
         pyxel.text(screen_width//2-25, 20, "SCORE RANKING", pyxel.COLOR_YELLOW)
         for i, score in enumerate(self.ranking[:3]):
             pyxel.text(screen_width//2-20, 40+20*i, f"{i+1} : {score}点", pyxel.COLOR_WHITE)
+            # NEW!! の表示
+            if self.new_rank_index == i:
+                pyxel.text(screen_width//2+20, 40+20*i, "NEW!!", pyxel.COLOR_RED)
         pyxel.text(25, 100, "クリックでスタート画面へ", pyxel.COLOR_CYAN, self.jp_font)
 
     def draw_play_scene(self):
@@ -281,7 +319,7 @@ class App:
         for i in range(self.life):
             pyxel.blt(screen_width-12-10*i, 5, 0, 40, 0, 8, 8, pyxel.COLOR_BLACK)  # ハート画像
         if self.is_collision:
-            pyxel.text(screen_width//2-20, screen_height//2, "GAME OVER", pyxel.COLOR_RED)
+            pyxel.text(screen_width//2-25, screen_height//2-10, "GAME OVER", pyxel.COLOR_RED, self.jp_font)
 
     def draw(self):
         pyxel.cls(0)
